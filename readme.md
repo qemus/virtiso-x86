@@ -22,7 +22,7 @@ It minimizes the [official ISO](https://fedorapeople.org/groups/virt/virtio-win/
 
 # Usage
 
-  It contains every x86 driver the official image has, so there is zero loss of functionality.
+  It contains every x86 driver the official image has, and even the .MSI installer, so there is zero loss of functionality.
 
 # Disclaimer
 
