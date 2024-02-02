@@ -70,7 +70,6 @@ jobs:
             # Remove tools for different platforms
             sudo rm -rf /tmp/iso/i386
             sudo rm -rf /tmp/iso/guest-agent
-            sudo rm -f /tmp/iso/virtio-win-gt-x86.msi
             sudo rm -f /tmp/iso/virtio-win-gt-x64.msi
             sudo rm -f /tmp/iso/virtio-win-guest-tools.exe
             sudo rm -f /tmp/iso/guest-agent/qemu-ga-i386.msi
@@ -81,13 +80,18 @@ jobs:
             sudo find /tmp/iso -name "AMD64" -type d -exec  rm -rf {} +
             sudo find /tmp/iso -name "Amd64" -type d -exec rm -rf {} +
             sudo find /tmp/iso -name "amd64" -type d -exec rm -rf {} +
-            sudo find /tmp/iso -name "x86" -type d -exec rm -rf {} +
-            sudo find /tmp/iso -name "X86" -type d -exec rm -rf {} +
+            sudo find /tmp/iso -name "ARM64" -type d -exec  rm -rf {} +
+            sudo find /tmp/iso -name "Arm64" -type d -exec rm -rf {} +
+            sudo find /tmp/iso -name "arm64" -type d -exec rm -rf {} +
             sudo find /tmp/iso -name "x64" -type d -exec rm -rf {} +
             sudo find /tmp/iso -name "X64" -type d -exec rm -rf {} +
             # Remove empty directories
             sudo find . -type d -empty -delete
           fi
+          echo & echo
+          wget "https://downloadmirror.intel.com/23295/eng/f6flpy-x86_11.2.0.1006.zip" -O "/tmp/satax86.zip" -q
+          mkdir -p /tmp/iso/sata/xp/x86
+          unzip /tmp/satax86.zip -d /tmp/iso/sata/xp/x86
           echo & echo
           genisoimage -o /tmp/out.iso -r -iso-level 4 -input-charset iso8859-1 -V "virtio-win-${{ env.latest_tag }}" /tmp/iso
           mv /tmp/out.iso /tmp/virtio-win-${{ env.latest_tag }}.iso
