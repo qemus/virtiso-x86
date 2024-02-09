@@ -1,6 +1,6 @@
 <h1 align="center">Virtiso x86<br />
 <div align="center">
-<img src="https://github.com/qemus/virtiso-x86/raw/master/.github/logo.png" title="Logo" style="max-width:100%;" width="128" />
+<a href="https://github.com/qemus/virtiso-x86"><img src="https://github.com/qemus/virtiso-x86/raw/master/.github/logo.png" title="Logo" style="max-width:100%;" width="128" /></a>
 </div>
 <div align="center">
   
