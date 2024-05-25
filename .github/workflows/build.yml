@@ -86,21 +86,17 @@ jobs:
           wget "https://github.com/qemus/virtiso-x86/releases/download/v0.1.240/legacy.zip" -O "/tmp/legacy.zip" -q
           sudo unzip /tmp/legacy.zip -d /tmp/iso >/dev/null
           echo & echo
-          genisoimage -o /tmp/out.iso -r -iso-level 4 -input-charset iso8859-1 -V "virtio-win-${{ env.latest_tag }}" /tmp/iso
-          mv /tmp/out.iso /tmp/virtio-win-${{ env.latest_tag }}.iso
+          tar -cvzf /tmp/virtio-win-${{ env.latest_tag }}.tar.gz /tmp/iso >/dev/null
+          echo & echo
+          XZ_OPT=-9 tar -Jcvf /tmp/virtio-win-${{ env.latest_tag }}.tar.xz /tmp/iso >/dev/null         
+          echo & echo
+          genisoimage -o /tmp/virtio-win-${{ env.latest_tag }}.iso -r -iso-level 4 -input-charset iso8859-1 -V "virtio-win-${{ env.latest_tag }}" /tmp/iso
       -
         name: Checkout
         if: env.exists == 'false'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      -
-        name: Create artifact
-        if: env.exists == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: virtio-win-${{ env.latest_tag }}.iso
-          path: /tmp/virtio-win-${{ env.latest_tag }}.iso
       -
         name: Create a release
         if: env.exists == 'false'
@@ -114,7 +110,7 @@ jobs:
         if: env.exists == 'false'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: '/tmp/virtio-win-${{ env.latest_tag }}.iso'
+          files: '/tmp/virtio-win-${{ env.latest_tag }}.*'
           release-tag: "v${{ env.latest_tag }}"
           repo-token: ${{ secrets.REPO_ACCESS_TOKEN }}
       -
