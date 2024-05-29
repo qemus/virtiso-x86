@@ -53,7 +53,7 @@ jobs:
            echo "exists=false" >> $GITHUB_ENV
           fi
       -
-        name: Process Fedora drivers
+        name: Download Fedora drivers
         if: env.exists == 'false'
         id: fedora
         run: |
