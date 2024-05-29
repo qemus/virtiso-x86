@@ -1,4 +1,4 @@
-<h1 align="center">Virtiso x86<br />
+<h1 align="center">VirtISO x86<br />
 <div align="center">
 <a href="https://github.com/qemus/virtiso-x86"><img src="https://github.com/qemus/virtiso-x86/raw/master/.github/logo.png" title="Logo" style="max-width:100%;" width="128" /></a>
 </div>
@@ -10,7 +10,7 @@
   
 </div></h1>
 
-Virtiso is a slim image of the KVM/QEMU Virtio drivers for 32-bit Windows guests.
+VirtISO is a slim image of the KVM/QEMU Virtio drivers for 32-bit Windows guests.
 
 It minimizes the [official ISO](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/) from 700 MB to just 18 MB in size.
 
