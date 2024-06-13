@@ -24,11 +24,12 @@ It minimizes the [official ISO](https://fedorapeople.org/groups/virt/virtio-win/
 
   It contains every x86 driver the official image has, and even the .MSI installer, so there is zero loss of functionality.
   
-  See also [VirtISO x64](https://github.com/qemus/virtiso/) if you need x64 drivers and [VirtISO ARM](https://github.com/qemus/virtiso-arm/) for  ARM64 drivers.
+> [!TIP]
+> See also [VirtISO x64](https://github.com/qemus/virtiso/) if you need x64 drivers and [VirtISO ARM](https://github.com/qemus/virtiso-arm/) for  ARM64 drivers.
 
 # Stars 🌟
 [![Stars](https://starchart.cc/qemus/virtiso-x86.svg?variant=adaptive)](https://starchart.cc/qemus/virtiso-x86)
 
 # Disclaimer ⚖️
 
-  This project contains binaries provided by Red Hat, Inc. and/or its affiliates.
+  *This project contains binaries provided by Red Hat, Inc. and/or its affiliates.*
