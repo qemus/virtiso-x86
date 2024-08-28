@@ -59,7 +59,8 @@ jobs:
         run: |
           #!/bin/bash
           sudo apt install genisoimage libarchive-tools
-          wget "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-${{ env.latest_tag }}-1/virtio-win-${{ env.latest_tag }}.iso" -O "/tmp/latest.iso" -q
+          url="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-${{ env.latest_tag }}-1/virtio-win-${{ env.latest_tag }}.iso"
+          wget "$url" -O "/tmp/latest.iso" -q
           rm -rf /tmp/iso && mkdir /tmp/iso
           bsdtar -xf "/tmp/latest.iso" -C /tmp/iso/
       -
@@ -89,7 +90,8 @@ jobs:
         id: legacy
         run: |
           #!/bin/bash
-          wget "https://github.com/qemus/virtiso-x86/releases/download/v0.1.240/legacy.zip" -O "/tmp/legacy.zip" -q
+          url="https://github.com/qemus/virtiso-x86/releases/download/v0.1.240/legacy.zip"
+          wget "$url" -O "/tmp/legacy.zip" -q
           sudo unzip /tmp/legacy.zip -d /tmp/iso >/dev/null
       -
         name: Build minified ISO
