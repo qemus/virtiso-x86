@@ -58,7 +58,7 @@ jobs:
         id: fedora
         run: |
           #!/bin/bash
-          sudo apt install genisoimage libarchive-tools
+          sudo apt install rdfind genisoimage libarchive-tools
           url="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-${{ env.latest_tag }}/virtio-win-$base.iso"
           wget "$url" -O "/tmp/latest.iso" -q
           rm -rf /tmp/iso && mkdir /tmp/iso
@@ -82,17 +82,20 @@ jobs:
           sudo find /tmp/iso -iname "x64" -type d -exec rm -rf {} +
           sudo find /tmp/iso -iname "amd64" -type d -exec rm -rf {} +
           sudo find /tmp/iso -iname "arm64" -type d -exec rm -rf {} +            
+          # Remove Win8/Win2012 drivers
+          sudo find /tmp/iso -iname "w8" -type d -exec rm -rf {} +
+          sudo find /tmp/iso -iname "w8.1" -type d -exec rm -rf {} +
+          sudo find /tmp/iso -iname "2k12" -type d -exec rm -rf {} +
+          sudo find /tmp/iso -iname "2k12R2" -type d -exec rm -rf {} +
           # Remove empty directories
           sudo find . -type d -empty -delete
       -
-        name: Add SATA drivers for Windows XP
+        name: Create symbolic links
         if: env.exists == 'false'
-        id: legacy
+        id: symlinks
         run: |
           #!/bin/bash
-          url="https://github.com/qemus/virtiso-x86/releases/download/v0.1.240/legacy.zip"
-          wget "$url" -O "/tmp/legacy.zip" -q
-          sudo unzip /tmp/legacy.zip -d /tmp/iso >/dev/null
+          sudo rdfind -makehardlinks true /tmp/iso/
       -
         name: Build minified ISO
         if: env.exists == 'false'
