@@ -20,6 +20,10 @@ It minimizes the [official ISO](https://fedorapeople.org/groups/virt/virtio-win/
   - Stripped all .PDB (debug symbol) files
   - Stripped Guest Agent and Guest Tools
 
+# Download
+
+  You can download the [latest version](https://github.com/qemus/virtiso-x86/releases/download/v0.1.266-1/virtio-win-0.1.266.iso) from the [Releases](https://github.com/qemus/virtiso-x86/releases) page.
+
 # Usage 🚀
 
   It contains every x86 driver the official image has, and even the .MSI installer, so there is zero loss of functionality.
