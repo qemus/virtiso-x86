@@ -175,6 +175,57 @@ jobs:
           find /tmp/iso -depth -type d -empty -delete
           EOF
       -
+        name: Verify driver folders
+        if: env.exists == 'false'
+        id: verify
+        run: |
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          missing="/tmp/missing-driver-folders.txt"
+          : > "$missing"
+
+          while IFS=: read -r driver versions; do
+            [ -n "$driver" ] || continue
+
+            for version in $versions; do
+              path="/tmp/iso/$driver/$version"
+
+              if [ ! -d "$path" ]; then
+                echo "$driver/$version" >> "$missing"
+              fi
+            done
+          done <<'EOF'
+          Balloon:2k3 xp 2k8 w7 w8 w8.1 w10
+          NetKVM:2k3 xp 2k8 w7 w8 w8.1 w10
+          fwcfg:w8 w8.1 w10
+          pvpanic:2k8 w7 w8 w8.1 w10
+          qemufwcfg:w10
+          qemupciserial:2k8 w7 w8 w8.1 w10
+          qxl:xp w7
+          qxldod:w8 w8.1 w10
+          smbus:2k8
+          sriov:w8 w8.1 w10
+          viofs:w8 w8.1 w10
+          viogpudo:w8 w8.1 w10
+          vioinput:w7 w8 w8.1 w10
+          viorng:2k8 w7 w8 w8.1 w10
+          vioscsi:2k8 w7 w8 w8.1 w10
+          vioserial:2k3 xp 2k8 w7 w8 w8.1 w10
+          viostor:2k3 xp 2k8 w7 w8 w8.1 w10
+          EOF
+
+          if [ -s "$missing" ]; then
+            echo "ERROR: Previously available driver folders are missing:" >&2
+            sed 's/^/  - /' "$missing" >&2
+            echo >&2
+            echo "The upstream package may have dropped Windows drivers." >&2
+            echo "Review the missing folders before publishing this release." >&2
+            exit 1
+          fi
+
+          echo "All expected driver folders are present."
+      -
         name: Generate release notes
         if: env.exists == 'false'
         id: notes
