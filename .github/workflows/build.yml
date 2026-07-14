@@ -18,95 +18,488 @@ jobs:
       packages: write
       contents: read
     steps:
-      - 
+      -
         name: Get latest version
         run: |
-          #!/bin/bash
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
           url="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/"
-          resp=$(curl -sS $url)
-          latest_tag=$(echo "$resp" | grep -o 'href="[^"]*' | sed -n -e 's/^.*virtio-win-//p' | cut -f1 -d"/")
-          [ -z "$latest_tag" ] && echo "Tag not found!" && exit 1
-          echo "Found tag: \"${latest_tag}\""
-          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
-          base=$(echo "$latest_tag" | cut -f1 -d"-")
-          echo "latest_base=$base" >> $GITHUB_ENV          
-      - 
+          resp=$(curl -fsS "$url")
+
+          latest_tag=$(
+            grep -o 'href="[^"]*' <<< "$resp" |
+              sed -n 's|^.*virtio-win-\([^/"]*\)/.*|\1|p' |
+              head -n 1
+          )
+
+          if [ -z "$latest_tag" ]; then
+            echo "ERROR: Tag not found." >&2
+            exit 1
+          fi
+
+          base=${latest_tag%%-*}
+
+          echo "Found tag: \"$latest_tag\""
+
+          {
+            echo "latest_tag=$latest_tag"
+            echo "latest_base=$base"
+          } >> "$GITHUB_ENV"
+      -
         name: Check if the tag exists locally
         uses: action-pack/tag-exists@v1
         id: checkTag
-        with: 
-          tag: 'v${{ env.latest_tag }}'         
+        with:
+          tag: 'v${{ env.latest_tag }}'
       -
         name: Finish when found
         run: |
-          #!/bin/bash
-          if [[ "${{ steps.checkTag.outputs.exists }}" == "true" ]]; then
-            echo "exists=true" >> $GITHUB_ENV
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          if [ "${{ steps.checkTag.outputs.exists }}" = "true" ]; then
+            echo "exists=true" >> "$GITHUB_ENV"
             exit 0
           fi
-          url="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-${{ env.latest_tag }}"
-          echo "Checking if ${url} exists.."
-          resp=$(curl -I 2>/dev/null $url | head -1)
-          if echo $resp | grep 404 >/dev/null; then
-           echo "Download $url not found!" && exit 1
-          else
-           echo "exists=false" >> $GITHUB_ENV
+
+          url="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-${{ env.latest_tag }}/"
+
+          echo "Checking if $url exists..."
+
+          if ! curl -fsSI "$url" >/dev/null; then
+            echo "ERROR: Download location not found: $url" >&2
+            exit 1
           fi
+
+          echo "exists=false" >> "$GITHUB_ENV"
       -
         name: Download Fedora drivers
         if: env.exists == 'false'
         id: fedora
         run: |
-          #!/bin/bash
-          sudo apt install rdfind genisoimage libarchive-tools symlinks
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y rdfind genisoimage libarchive-tools
+
           url="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-${{ env.latest_tag }}/virtio-win-${{ env.latest_base }}.iso"
+
           echo "Downloading $url"
-          wget "$url" -O "/tmp/latest.iso" -q
-          rm -rf /tmp/iso && mkdir /tmp/iso
-          bsdtar -xf "/tmp/latest.iso" -C /tmp/iso/
+
+          wget "$url" -O /tmp/latest.iso -q
+
+          rm -rf /tmp/iso
+          mkdir -p /tmp/iso
+
+          bsdtar -xf /tmp/latest.iso -C /tmp/iso
       -
-        name:  Strip unnecessary bloat
+        name: Strip unnecessary bloat
         if: env.exists == 'false'
         id: strip
         run: |
-          #!/bin/bash
-          cd /tmp/iso
-          # Remove tools for other platforms
-          sudo rm -rf /tmp/iso/i386
-          sudo rm -rf /tmp/iso/guest-agent
-          sudo rm -f /tmp/iso/virtio-win-gt-x64.msi
-          sudo rm -f /tmp/iso/virtio-win-guest-tools.exe
-          sudo rm -f /tmp/iso/guest-agent/qemu-ga-i386.msi
-          # Remove debug symbols
-          sudo find /tmp/iso -iname "*.pdb" -type f -delete
-          # Remove binaries for other platforms
-          sudo find /tmp/iso -iname "x64" -type d -exec rm -rf {} +
-          sudo find /tmp/iso -iname "amd64" -type d -exec rm -rf {} +
-          sudo find /tmp/iso -iname "arm64" -type d -exec rm -rf {} +
-          # Remove empty directories
-          sudo find . -type d -empty -delete
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          # Remove bloat.
+          sudo rm -f /tmp/iso/winfsp-*
+          sudo rm -rf \
+            /tmp/iso/spice-vdagent \
+            /tmp/iso/qxl-wddm-dod \
+            /tmp/iso/qxl \
+            /tmp/iso/qxldod
+
+          # Remove tools for other platforms.
+          sudo rm -rf \
+            /tmp/iso/i386 \
+            /tmp/iso/tools \
+            /tmp/iso/guest-agent
+
+          sudo rm -f \
+            /tmp/iso/virtio-win-gt-x64.msi \
+            /tmp/iso/virtio-win-guest-tools.exe
+
+          # Remove test and bridge utilities.
+          if [ -d /tmp/iso/viosock ]; then
+            sudo find /tmp/iso/viosock \
+              -type f \
+              \( \
+                -iname 'viosock-test.exe' -o \
+                -iname 'viosocklib-test.exe' -o \
+                -iname 'vstbridge.exe' \
+              \) \
+              -delete
+          fi
+
+          # Remove debug symbols.
+          sudo find /tmp/iso -type f -iname '*.pdb' -delete
+
+          # Remove drivers for other architectures.
+          sudo find /tmp/iso \
+            -type d \
+            \( \
+              -iname x64 -o \
+              -iname amd64 -o \
+              -iname arm64 \
+            \) \
+            -prune \
+            -exec rm -rf {} +
+
+          # Replace any symlinks with normal files or directories.
+          sudo bash -Eeuo pipefail <<'EOF'
+          while IFS= read -r -d '' link; do
+            target=$(readlink -f -- "$link")
+
+            if [ -z "$target" ] || [ ! -e "$target" ]; then
+              echo "ERROR: Broken symlink in ISO: $link" >&2
+              exit 1
+            fi
+
+            case "$target" in
+              /tmp/iso/*) ;;
+              *)
+                echo "ERROR: Symlink points outside the ISO tree: $link -> $target" >&2
+                exit 1
+                ;;
+            esac
+
+            replacement="${link}.resolved"
+            rm -rf -- "$replacement"
+
+            if [ -d "$target" ]; then
+              cp -aL -- "$target" "$replacement"
+            else
+              cp -L --preserve=mode,timestamps -- "$link" "$replacement"
+            fi
+
+            rm -rf -- "$link"
+            mv -- "$replacement" "$link"
+          done < <(find /tmp/iso -type l -print0)
+
+          find /tmp/iso -depth -type d -empty -delete
+          EOF
       -
-        name: Create symbolic links
+        name: Generate release notes
         if: env.exists == 'false'
-        id: symlinks
+        id: notes
+        env:
+          LATEST_TAG: ${{ env.latest_tag }}
         run: |
-          #!/bin/bash
-          sudo rdfind -removeidentinode false -makehardlinks true /tmp/iso/
-          symlinks -orc /tmp/iso
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          changelog_url="https://fedorapeople.org/groups/virt/virtio-win/CHANGELOG"
+
+          curl -fsS "$changelog_url" -o /tmp/CHANGELOG
+
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          from collections import defaultdict
+          from pathlib import Path
+
+          iso_root = Path("/tmp/iso")
+          info_file = iso_root / "data/info.json"
+          changelog_file = Path("/tmp/CHANGELOG")
+          output_file = Path("/tmp/release-notes.md")
+          latest_tag = os.environ["LATEST_TAG"]
+
+          if not info_file.is_file():
+              raise SystemExit(
+                  "ERROR: data/info.json was not found in the ISO."
+              )
+
+          if not changelog_file.is_file():
+              raise SystemExit(
+                  "ERROR: Fedora changelog was not downloaded."
+              )
+
+          changelog = changelog_file.read_text(
+              encoding="utf-8",
+              errors="replace",
+          )
+
+          changelog = changelog.replace("\r\n", "\n").replace("\r", "\n")
+          changelog = re.sub(
+              r"^\s*%changelog\s*",
+              "",
+              changelog,
+          )
+
+          entries = [
+              entry.strip()
+              for entry in re.split(
+                  r"(?=^\*[ \t])",
+                  changelog,
+                  flags=re.MULTILINE,
+              )
+              if entry.strip()
+          ]
+
+          selected_entry = ""
+
+          for entry in entries:
+              if re.search(
+                  rf"(?:^|[ \t-]){re.escape(latest_tag)}(?:\s|$)",
+                  entry,
+              ):
+                  selected_entry = entry
+                  break
+
+          if not selected_entry and entries:
+              selected_entry = entries[0]
+
+          selected_entry = re.sub(
+              r"^\*[ \t]*",
+              "",
+              selected_entry,
+          ).strip()
+
+          header = ""
+          details = []
+
+          if selected_entry:
+              lines = selected_entry.splitlines()
+              header = lines[0].strip()
+
+              for line in lines[1:]:
+                  line = line.strip()
+
+                  if not line:
+                      continue
+
+                  details.append(
+                      re.sub(r"^-[ \t]*", "", line)
+                  )
+
+          header_match = re.match(
+              r"(?P<date>(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+"
+              r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+"
+              r"\d{1,2}\s+\d{4})\s+"
+              r"(?P<author>.+?)\s+-\s+"
+              r"(?P<version>\S+)\s*$",
+              header,
+          )
+
+          windows_names = {
+              "2k25": "Windows Server 2025",
+              "w11": "Windows 11",
+              "2k22": "Windows Server 2022",
+              "2k19": "Windows Server 2019",
+              "2k16": "Windows Server 2016",
+              "w10": "Windows 10",
+              "2k12R2": "Windows Server 2012 R2",
+              "w8.1": "Windows 8.1",
+              "2k12": "Windows Server 2012",
+              "w8": "Windows 8",
+              "2k8R2": "Windows Server 2008 R2",
+              "w7": "Windows 7",
+              "2k8": "Windows Server 2008",
+              "2k3": "Windows Server 2003",
+              "xp": "Windows XP",
+          }
+
+          preferred_order = list(windows_names)
+
+          with info_file.open(encoding="utf-8") as file:
+              data = json.load(file)
+
+          grouped = defaultdict(lambda: defaultdict(set))
+
+          for driver in data.get("drivers", []):
+              if str(driver.get("arch", "")).lower() != "x86":
+                  continue
+
+              inf_path = str(
+                  driver.get("inf_path", "")
+              ).strip()
+
+              if not inf_path:
+                  continue
+
+              inf = Path(inf_path)
+
+              if not inf.parts:
+                  continue
+
+              component = inf.parts[0].lower()
+
+              # Ignore the separate legacy QEMU FWCfg package.
+              if component == "qemufwcfg":
+                  continue
+
+              # Do not list drivers removed from the minified ISO.
+              if not (iso_root / inf).is_file():
+                  continue
+
+              windows_version = str(
+                  driver.get("windows_version", "")
+              ).strip()
+
+              driver_version = str(
+                  driver.get("driver_version", "")
+              ).strip()
+
+              if not windows_version or not driver_version:
+                  continue
+
+              # Remove the date preceding the actual driver version.
+              if "," in driver_version:
+                  driver_version = driver_version.split(
+                      ",",
+                      1,
+                  )[1].strip()
+
+              component_name = str(
+                  driver.get("name", component)
+              ).strip()
+
+              if not component_name:
+                  component_name = component
+
+              grouped[windows_version][driver_version].add(
+                  component_name
+              )
+
+          windows_order = [
+              version
+              for version in preferred_order
+              if version in grouped
+          ]
+
+          windows_order.extend(
+              sorted(
+                  set(grouped) - set(windows_order),
+                  key=str.casefold,
+              )
+          )
+
+          lines = ["## Changelog", ""]
+
+          if header_match:
+              version = header_match.group("version")
+              date = header_match.group("date")
+              author = header_match.group("author")
+
+              lines.append(f"**{version}** — {date}")
+              lines.append(author)
+          elif header:
+              lines.append(header)
+          else:
+              lines.append(f"**{latest_tag}**")
+
+          if details:
+              lines.append("")
+
+              for detail in details:
+                  lines.append(f"- {detail}")
+
+          lines.extend(["", "## Driver versions"])
+
+          for windows_version in windows_order:
+              versions = grouped[windows_version]
+
+              heading = windows_names.get(
+                  windows_version,
+                  windows_version,
+              )
+
+              lines.extend(["", f"### {heading}", ""])
+
+              for driver_version in sorted(
+                  versions,
+                  reverse=True,
+              ):
+                  components = sorted(
+                      versions[driver_version],
+                      key=str.casefold,
+                  )
+
+                  lines.append(
+                      f"- `{driver_version}` — "
+                      f"{', '.join(components)}"
+                  )
+
+          output_file.write_text(
+              "\n".join(lines).rstrip() + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          cat /tmp/release-notes.md
+
+          delimiter="RELEASE_NOTES_$(date +%s%N)"
+
+          {
+            echo "release_notes<<$delimiter"
+            cat /tmp/release-notes.md
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+      -
+        name: Deduplicate files
+        if: env.exists == 'false'
+        id: deduplicate
+        run: |
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          sudo rdfind \
+            -outputname /dev/null \
+            -removeidentinode false \
+            -makehardlinks true \
+            /tmp/iso
       -
         name: Build minified ISO
         if: env.exists == 'false'
         id: build
         run: |
-          #!/bin/bash
-          cd /tmp/iso
-          genisoimage -o /tmp/virtio-win-${{ env.latest_base }}.iso -r -iso-level 4 -input-charset iso8859-1 -V "virtio-win-${{ env.latest_base }}" /tmp/iso
-          sudo rm /tmp/iso/*.msi
-          #sudo rm /tmp/iso/*.exe    
-          echo & echo
-          tar -C /tmp/iso -cvzf /tmp/virtio-win-${{ env.latest_base }}.tar.gz * >/dev/null
-          echo & echo
-          XZ_OPT=-9 tar -C /tmp/iso -Jcvf /tmp/virtio-win-${{ env.latest_base }}.tar.xz * >/dev/null         
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          base="${{ env.latest_base }}"
+          owner="$(id -u):$(id -g)"
+
+          sudo genisoimage \
+            -o "/tmp/virtio-win-${base}.iso" \
+            -r \
+            -iso-level 4 \
+            -input-charset iso8859-1 \
+            -cache-inodes \
+            -V "virtio-win-${base}" \
+            /tmp/iso
+
+          # Add a stable filename for the latest-release download URL.
+          cp \
+            "/tmp/virtio-win-${base}.iso" \
+            /tmp/virtio-win.iso
+
+          # Keep the MSI files in the ISO, but omit them from the archives.
+          sudo rm -f /tmp/iso/*.msi
+
+          sudo tar \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -C /tmp/iso \
+            -czf "/tmp/virtio-win-${base}.tar.gz" \
+            .
+
+          sudo env XZ_OPT=-9 tar \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -C /tmp/iso \
+            -cJf "/tmp/virtio-win-${base}.tar.xz" \
+            .
+
+          sudo chown "$owner" \
+            "/tmp/virtio-win-${base}.iso" \
+            "/tmp/virtio-win-${base}.tar.gz" \
+            "/tmp/virtio-win-${base}.tar.xz"
+
+          chown "$owner" /tmp/virtio-win.iso
       -
         name: Checkout
         if: env.exists == 'false'
@@ -118,7 +511,7 @@ jobs:
         if: env.exists == 'false'
         uses: action-pack/github-release@v2
         with:
-          body: " "
+          body: ${{ steps.notes.outputs.release_notes }}
           tag: "v${{ env.latest_tag }}"
           title: "v${{ env.latest_base }}"
           token: ${{ secrets.REPO_ACCESS_TOKEN }}
@@ -127,19 +520,19 @@ jobs:
         if: env.exists == 'false'
         uses: AButler/upload-release-assets@v4.0
         with:
-          files: '/tmp/virtio-win-${{ env.latest_base }}.*'
+          files: '/tmp/virtio-win*'
           release-tag: "v${{ env.latest_tag }}"
           repo-token: ${{ secrets.REPO_ACCESS_TOKEN }}
       -
-       name: Send mail
-       if: env.exists == 'false'
-       uses: action-pack/send-mail@v1
-       with:
-         to: ${{secrets.MAILTO}}
-         from: Github Actions <${{secrets.MAILTO}}>
-         connection_url: ${{secrets.MAIL_CONNECTION}}
-         subject: Build of ${{ github.event.repository.name }} v${{ env.latest_tag }} completed
-         body: |
-              The build job of ${{ github.event.repository.name }} v${{ env.latest_tag }} was completed successfully! 
-              
-              See https://github.com/${{ github.repository }}/actions for more information.
+        name: Send mail
+        if: env.exists == 'false'
+        uses: action-pack/send-mail@v1
+        with:
+          to: ${{ secrets.MAILTO }}
+          from: Github Actions <${{ secrets.MAILTO }}>
+          connection_url: ${{ secrets.MAIL_CONNECTION }}
+          subject: Build of ${{ github.event.repository.name }} v${{ env.latest_tag }} completed
+          body: |
+            The build job of ${{ github.event.repository.name }} v${{ env.latest_tag }} was completed successfully!
+
+            See https://github.com/${{ github.repository }}/actions for more information.
