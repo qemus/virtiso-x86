@@ -104,7 +104,6 @@ jobs:
 
           # Remove bloat.
           sudo rm -f /tmp/iso/winfsp-*
-          sudo rm -rf /tmp/iso/spice-vdagent
 
           # Remove tools for other platforms.
           sudo rm -rf \
